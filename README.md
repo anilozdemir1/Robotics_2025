@@ -1,1 +1,2 @@
 # Robotics_2025
+Deze repository bevat de geïntegreerde code voor een robotcel waarin drie hoofdonderdelen samenwerken: Human-Machine Interface (HMI), een manipulator en een vision systeem. Elk subsysteem is afzonderlijk ontwikkeld en vervolgens samengebracht tot één functioneel geheel. De HMI zorgt voor gebruikersinteractie en besturing, de manipulator voert fysieke handelingen uit, en het vision systeem detecteert en lokaliseert objecten in de omgeving. Samen vormen ze een autonome robotopstelling geschikt voor het scheiden van 6 vershillende ijsjes.
