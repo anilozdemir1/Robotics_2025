@@ -1,0 +1,10 @@
+<launch>
+  <!-- 1. Start MoveIt (in de echte robotomgeving) -->
+  <include file="$(find my_demo)/launch/environment_ur5.launch" />
+
+  <!-- 2. Gripper driver start met delay -->
+  <node pkg="ijsjes_robot" type="delayed_gripper_start.sh" name="robotiq_gripper_driver" output="screen" />
+
+  <!-- 3. Jouw script start -->
+  <node pkg="ijsjes_robot" type="robot_control.py" name="ijsjes_robot_control" output="screen" />
+</launch>
