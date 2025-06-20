@@ -1,6 +1,6 @@
 <launch>
-  <!-- 1. Start MoveIt (in de echte robotomgeving) -->
-  <include file="$(find my_demo)/launch/environment_ur5.launch" />
+  <!-- 1. Fysieke UR5 starten met MoveIt -->
+  <include file="$(find my_universal_robot_controllers)/launch/ur5_bringup.launch" />
 
   <!-- 2. Gripper driver start met delay -->
   <node pkg="ijsjes_robot" type="delayed_gripper_start.sh" name="robotiq_gripper_driver" output="screen" />

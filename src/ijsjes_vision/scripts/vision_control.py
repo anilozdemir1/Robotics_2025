@@ -16,6 +16,9 @@ import socket
 import json
 
 # === Functie om de rotatiehoek van het object binnen een ROI (Region of Interest) te bepalen ===
+import cv2
+import numpy as np
+
 def calculate_angle_from_roi(roi):
     # Grijswaarden conversie en ruisreductie
     gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
@@ -28,7 +31,7 @@ def calculate_angle_from_roi(roi):
     )
 
     # Contouren vinden
-    contours, _ = cv2.findContours(
+    _, contours, _ = cv2.findContours(
         thresh_roi, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
 
@@ -45,17 +48,19 @@ def calculate_angle_from_roi(roi):
         largest_contour, cv2.DIST_L2, 0, 0.01, 0.01
     )
 
-    # Bereken hoek in graden (tussen -90 en 90)
-    angle_rad = np.arctan2(vy, vx)
+    # Roteer zodat 0 graden = verticaal omhoog, draai tegen de klok in
+    angle_rad = np.arctan2(vx, vy)
     angle_deg = np.degrees(angle_rad)
+    if angle_deg < 0:
+        angle_deg += 360
 
-    # Normaliseer naar bereik [-90, 90]
-    if angle_deg > 90:
+# Haal hoek terug binnen 0-180 (zelfde lijn, geen richting)
+    if angle_deg > 180:
         angle_deg -= 180
-    elif angle_deg < -90:
-        angle_deg += 180
+
 
     return float(angle_deg)
+
 
 
 # === Hoofdfunctie ===
