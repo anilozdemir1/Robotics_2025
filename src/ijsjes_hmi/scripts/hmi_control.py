@@ -110,11 +110,11 @@ class RoboticArmInterface(tk.Frame):
         self.header_frame.grid_columnconfigure(0, weight=1)
         self.header_frame.grid_columnconfigure(1, weight=1)
 
-        logo_image = PILImage.open("avans_logo.png").resize((80, 80))
-        logo_photo = ImageTk.PhotoImage(logo_image)
-        self.logo_label = tk.Label(self.header_frame, image=logo_photo, bg="#f0f0f0")
-        self.logo_label.image = logo_photo
-        self.logo_label.grid(row=0, column=0, sticky="w", padx=20)
+        # logo_image = PILImage.open("avans_logo.png").resize((80, 80))
+        # logo_photo = ImageTk.PhotoImage(logo_image)
+        # self.logo_label = tk.Label(self.header_frame, image=logo_photo, bg="#f0f0f0")
+        # self.logo_label.image = logo_photo
+        # self.logo_label.grid(row=0, column=0, sticky="w", padx=20)
 
         self.clock_label = tk.Label(self.header_frame, font=("Segoe UI", 12, "bold"), bg="#f0f0f0")
         self.clock_label.grid(row=0, column=1, sticky="e", padx=20)
@@ -155,6 +155,9 @@ class RoboticArmInterface(tk.Frame):
 
         self.exit_button = ttk.Button(self.controls_frame, text="Close HMI", command=self.master.quit, style="TButton")
         self.exit_button.pack(pady=5)
+
+        self.reset_button = ttk.Button(self.control_frame, text="Reset", command=self.reset_robot, style="TButton")
+        self.reset_button.pack(side="left", padx=10)
 
         # Status label: hier tonen we current_action en passen kleur aan per theme (wit/zwart)
         self.status_label = ttk.Label(self.controls_frame, text="Current action: Initializing", foreground="black")
@@ -332,6 +335,7 @@ class RoboticArmInterface(tk.Frame):
         msg.stop = False
         msg.single_cycle = False
         msg.emergency = False
+        msg.reset = False
         self.pub.publish(msg)
 
     def stop(self):
@@ -340,6 +344,7 @@ class RoboticArmInterface(tk.Frame):
         msg.stop = True
         msg.single_cycle = False
         msg.emergency = False
+        msg.reset = False
         self.pub.publish(msg)
 
     def single_cycle(self):
@@ -348,6 +353,7 @@ class RoboticArmInterface(tk.Frame):
         msg.stop = False
         msg.single_cycle = True
         msg.emergency = False
+        msg.reset = False
         self.pub.publish(msg)
 
     def emergency_stop(self):
@@ -356,7 +362,18 @@ class RoboticArmInterface(tk.Frame):
         msg.stop = False
         msg.single_cycle = False
         msg.emergency = True
+        msg.reset = False
         self.pub.publish(msg)
+
+    def reset_robot(self):
+        msg = HmiToRobot()
+        msg.start = False
+        msg.stop = False
+        msg.single_cycle = False
+        msg.emergency = False
+        msg.reset = True  # <-- stuur reset aan de robot
+        self.pub.publish(msg)
+
 
 
 if __name__ == "__main__":

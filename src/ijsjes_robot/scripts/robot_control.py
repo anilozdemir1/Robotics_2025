@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -- coding: utf-8 --
 import rospy
 import moveit_commander
 from moveit_commander import MoveGroupCommander
@@ -112,25 +112,56 @@ class IceRobot:
         msg.current_action = self.current_action
         self.robot_to_hmi_pub.publish(msg)
 
+
+    def emergency_stop(self):
+        """
+        Stop de robot volledig en zet interne flags zodat de robot niet door blijft gaan zolang emergency actief is.
+        """
+        rospy.logwarn("EMERGENCY STOP geactiveerd! Robot stopt direct.")
+        self.arm.stop()
+        # Gripper commando open om vastklemmen te voorkomen
+        self.move_gripper("open")
+        self.current_action = "EMERGENCY ACTIEF"
+        self.running = False
+        # Clear eventuele doelen om te voorkomen dat robot doorgaat
+        self.arm.clear_pose_targets()
+
     def hmi_callback(self, msg):
         """
         Callback voor HMI commando's. 
         Houdt de huidige status bij en reageert direct op emergency door te stoppen.
+        Blokkeert start en single cycle zolang emergency actief is.
         """
+        was_emergency = self.emergency  # onthoud huidige emergency status vóór update
         self.emergency = msg.emergency
         self.single_cycle = msg.single_cycle
         self.start = msg.start
         self.stop = msg.stop
 
+        if hasattr(msg, 'reset') and msg.reset:
+            if was_emergency:  # LET OP: gebruiken wat NU actief is
+                rospy.loginfo("Reset commando ontvangen, ga naar home positie.")
+                self.arm.set_named_target("home")
+                self.arm.go(wait=True)
+                self.current_action = "Reset - robot naar home"
+            # eventueel reset flags of error ook resetten hier
+                self.error = False
+                self.emergency = False
+                self.stop = False
+                self.single_cycle = False
+                self.start = False
+            else:
+                rospy.logwarn("Reset ontvangen zonder actieve emergency - negeer reset.")
+            return  # Belangrijk: return hier om te voorkomen dat flags hieronder overschreven worden    
+
         if self.emergency:
-            rospy.logwarn("EMERGENCY geactiveerd! Robot stopt direct.")
-            self.arm.stop()
-            self.gripper.stop()
-            self.current_action = "EMERGENCY ACTIEF"
-        elif self.stop:
-            self.current_action = "Stoppen na cyclus"
+            # Als emergency aan gaat, stop robot meteen en voorkom verdere acties
+            self.emergency_stop()
         else:
-            self.current_action = "Wachten op start/single_cycle"
+            # Emergency is uit, robot mag weer starten
+            if self.current_action == "EMERGENCY ACTIEF":
+                rospy.loginfo("Emergency uitgeschakeld, robot kan weer starten.")
+                self.current_action = "Wachten op start/single_cycle"
 
     def target_callback(self, msg):
         """
@@ -178,7 +209,13 @@ class IceRobot:
         - transformeert ijsco positie naar robot frame
         - plant en voert beweging uit naar ijsco (wacht als planning mislukt)
         - grijpt ijsco, terug naar home, beweegt naar juiste bak, opent gripper, terug naar home
+        Controleert tijdens het proces regelmatig of emergency actief is en stopt dan.
         """
+        if self.emergency:
+            rospy.logwarn("Emergency actief, stop sorteerproces.")
+            self.current_action = "Emergency actief - sorteerproces afgebroken"
+            return
+
         source_frame = "camera_link"
         target_frame = self.arm.get_planning_frame()
 
@@ -193,7 +230,7 @@ class IceRobot:
             point_in_source.point.x = msg.x / 1000.0
             point_in_source.point.y = msg.y / 1000.0
             # Corrigeer z-waarde met offset gripper lengte en teken assenstelsel
-            point_in_source.point.z = -(msg.z - 180) / 1000.0
+            point_in_source.point.z = -(msg.z - 185) / 1000.0
 
             # Transformeer naar robot frame
             point_in_target = self.tf_listener.transformPoint(target_frame, point_in_source)
@@ -215,6 +252,12 @@ class IceRobot:
             # Probeer te plannen en uitvoeren, blijf proberen als plannen mislukt
             planned = False
             while not planned and not rospy.is_shutdown():
+                # Check emergency tijdens wachten/loop
+                if self.emergency:
+                    rospy.logwarn("Emergency actief tijdens planning, stop sorteerproces.")
+                    self.current_action = "Emergency actief - sorteerproces afgebroken"
+                    return
+
                 self.current_action = "Plannen naar ijsje"
                 self.arm.set_pose_target(pose)
                 plan = self.arm.plan()
@@ -237,19 +280,46 @@ class IceRobot:
 
             # Als planning geslaagd is, voer verdere stappen uit
             if planned:
+                # Nogmaals emergency check vóór grijpactie
+                if self.emergency:
+                    rospy.logwarn("Emergency actief net voor grijpen, stop sorteerproces.")
+                    self.current_action = "Emergency actief - sorteerproces afgebroken"
+                    return
+
                 self.error = False
                 self.current_action = "Grijp het ijsje"
                 self.move_gripper("close")
+
+                # Check emergency na grijpen
+                if self.emergency:
+                    rospy.logwarn("Emergency actief net na grijpen, stop sorteerproces.")
+                    self.current_action = "Emergency actief - sorteerproces afgebroken"
+                    return
 
                 self.current_action = "Terug naar home"
                 self.arm.set_named_target("home")
                 self.arm.go(wait=True)
 
+                if self.emergency:
+                    rospy.logwarn("Emergency actief tijdens terug naar home, stop sorteerproces.")
+                    self.current_action = "Emergency actief - sorteerproces afgebroken"
+                    return
+
                 self.current_action = "Beweeg naar bin {}".format(msg.bin_number)
                 self.go_to_bin(msg.bin_number)
 
+                if self.emergency:
+                    rospy.logwarn("Emergency actief tijdens bewegen naar bin, stop sorteerproces.")
+                    self.current_action = "Emergency actief - sorteerproces afgebroken"
+                    return
+
                 self.current_action = "Laat ijsje los"
                 self.move_gripper("open")
+
+                if self.emergency:
+                    rospy.logwarn("Emergency actief net na loslaten, stop sorteerproces.")
+                    self.current_action = "Emergency actief - sorteerproces afgebroken"
+                    return
 
                 self.current_action = "Terug naar home"
                 self.arm.set_named_target("home")
@@ -282,7 +352,7 @@ class IceRobot:
             return
 
         self.gripper_pub.publish(cmd)
-        self.gripper.go(wait=True) # MoveIt visualisatie
+        self.gripper.go(wait=True)  # MoveIt visualisatie
         rospy.sleep(1)  # kort wachten om beweging te voltooien
 
     def go_to_bin(self, number):
@@ -295,7 +365,7 @@ class IceRobot:
         self.arm.go(wait=True)
 
         
-if __name__ == "__main__":
+if  __name__ == "__main__":
     try:
         robot = IceRobot()
         rospy.spin()

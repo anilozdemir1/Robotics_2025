@@ -1,10 +1,18 @@
 <launch>
-  <!-- 1. Fysieke UR5 starten met MoveIt -->
+  <!-- 1. UR5 bringup -->
   <include file="$(find my_universal_robot_controllers)/launch/ur5_bringup.launch" />
+  <include file="$(find my_demo)/launch/environment_ur5.launch" />
 
-  <!-- 2. Gripper driver start met delay -->
+  <!-- 2. Gripper driver met delay -->
   <node pkg="ijsjes_robot" type="delayed_gripper_start.sh" name="robotiq_gripper_driver" output="screen" />
 
-  <!-- 3. Jouw script start -->
+  <!-- 3. Robot control script -->
   <node pkg="ijsjes_robot" type="robot_control.py" name="ijsjes_robot_control" output="screen" />
+
+  <!-- 4. Vision met delay -->
+  <node pkg="ijsjes_vision" type="vision_publisher.py" name="vision_publisher" output="screen" launch-prefix="python3" />
+  <node pkg="ijsjes_vision" type="vision_control.py" name="vision_control" output="screen" launch-prefix="python3" />
+
+  <!-- 5. HMI control node -->
+  <node pkg="ijsjes_hmi" type="hmi_control.py" name="hmi_control_node" output="screen" launch-prefix="python3" />
 </launch>
